@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"golang.org/x/time/rate"
+	"maglev.onebusaway.org/internal/clock"
 )
 
 // RateLimitMiddleware provides per-API-key rate limiting
@@ -18,12 +19,13 @@ type RateLimitMiddleware struct {
 	burstSize   int
 	cleanupTick *time.Ticker
 	exemptKeys  map[string]bool
+	clock       clock.Clock
 }
 
 // NewRateLimitMiddleware creates a new rate limiting middleware
 // ratePerSecond: number of requests allowed per second per API key
 // burstSize: number of requests allowed in a burst per API key
-func NewRateLimitMiddleware(ratePerSecond int, interval time.Duration) func(http.Handler) http.Handler {
+func NewRateLimitMiddleware(ratePerSecond int, interval time.Duration, clock clock.Clock) func(http.Handler) http.Handler {
 	// Handle zero rate limit case
 	var rateLimit rate.Limit
 	if ratePerSecond <= 0 {
@@ -43,6 +45,7 @@ func NewRateLimitMiddleware(ratePerSecond int, interval time.Duration) func(http
 		exemptKeys: map[string]bool{
 			"org.onebusaway.iphone": true, // Exempt OneBusAway iPhone app
 		},
+		clock: clock,
 	}
 
 	// Start cleanup goroutine
@@ -142,7 +145,7 @@ func (rl *RateLimitMiddleware) sendRateLimitExceeded(w http.ResponseWriter, r *h
 				"stopTimes": []interface{}{},
 			},
 		},
-		"currentTime": time.Now().UnixMilli(),
+		"currentTime": rl.clock.Now().UnixMilli(),
 		"version":     2,
 	}
 
